@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package>
-  <name>active_follower</name>
+  <name>wall_follower_ROS</name>
   <version>0.0.0</version>
   <description>A node that makes the robot follow alongside walls</description>
 

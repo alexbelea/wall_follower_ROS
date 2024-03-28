@@ -1,0 +1,13 @@
+Steps to compile and run ROS:
+
+    1. Copy active_follower.cpp in src/wall_follower_ROS
+
+    2. cd ~/ros_folder/catkin_ws
+
+    3. catkin_make 
+
+    4. source ~/ros_folder/catkin_ws/devel/setup.sh
+
+    5. roslaunch jet_gazebo jet_gazebo.launch
+
+    6. rosrun wall_follower_ROS active_follower
