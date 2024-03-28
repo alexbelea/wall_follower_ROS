@@ -38,8 +38,8 @@ class ActiveFollower
 // MATCH THIS NAME IN THE CMakeLists.txt compilation configuration file
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "YOUR_NODE_NAME");
-  ActiveFollower activefollower; //starts everything by calling constructor
+  ros::init(argc, argv, "active_follower");
+  ActiveFollower active_follower; //starts everything by calling constructor
 }
 
 // One callback function. You need one per subscribed topic

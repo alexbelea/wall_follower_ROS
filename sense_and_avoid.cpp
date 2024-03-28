@@ -117,6 +117,10 @@ void SenseAndAvoid::sonarCallback(const std_msgs::Int16::ConstPtr& msg)
      else //keep moving backward
      {
       //YOUR CODE HERE
+      ROS_INFO("Dist %d cm",d);
+      vel_msg.linear.x = LINEAR_SPEED*-1;
+      vel_msg.angular.z = 0.0;
+      vel_pub.publish(vel_msg);
      }
      break;
    case TURN:
@@ -129,10 +133,13 @@ void SenseAndAvoid::sonarCallback(const std_msgs::Int16::ConstPtr& msg)
       vel_msg.angular.z = 0.0;
       vel_pub.publish(vel_msg); //stop
      }
-     else //keep rptating
+     else //keep rotating
      {
       ROS_INFO("Rotated %.1f, target %.1f",theta,alpha);
       //YOUR CODE HERE
+      vel_msg.linear.x = 0.0;     //set linear speed to zero
+      vel_msg.angular.z = alpha;  //random angular speed calculated in case reverse  
+      vel_pub.publish(vel_msg);   //publish the message with new parameters
      }
 	 break;
   }//end switch
