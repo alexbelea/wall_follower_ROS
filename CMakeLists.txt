@@ -17,5 +17,5 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(YOUR_NODE_NAME src/YOUR_NODE_SOURCE.cpp)
-target_link_libraries(YOUR_NODE_NAME ${catkin_LIBRARIES})
+add_executable(active_follower src/active_follower.cpp)
+target_link_libraries(active_follower ${catkin_LIBRARIES})
