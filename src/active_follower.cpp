@@ -50,7 +50,7 @@ void ActiveFollower::myCallback1(const std_msgs::Int64::ConstPtr& msg)
 // MATCH THIS NAME IN THE CMakeLists.txt compilation configuration file
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "YOUR_NODE_NAME");
+  ros::init(argc, argv, "active_follower"); //name should reflect what is in CMakeLists.txt target_link_libraries
   ActiveFollower activefollower; //starts everything by calling constructor
 }
 
