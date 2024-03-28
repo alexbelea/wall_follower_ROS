@@ -33,6 +33,15 @@ class ActiveFollower
 
 };
 
+// MAIN function.
+// UPDATE THE NODE NAME (don't use spaces, use underscores)
+// MATCH THIS NAME IN THE CMakeLists.txt compilation configuration file
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "YOUR_NODE_NAME");
+  ActiveFollower activefollower; //starts everything by calling constructor
+}
+
 // One callback function. You need one per subscribed topic
 // Part (or all) of the work can be done here
 //Replace "std_msgs::Int64" by the corresponding topic's message type
@@ -43,15 +52,6 @@ void ActiveFollower::myCallback1(const std_msgs::Int64::ConstPtr& msg)
   //If the node needs to calculate and publish data, it can be done here
   my_msg1.data = int_data * 2; //Dumb example, just publish twice the input value  
   my_pub1.publish(my_msg1); 
-}
-
-// MAIN function.
-// UPDATE THE NODE NAME (don't use spaces, use underscores)
-// MATCH THIS NAME IN THE CMakeLists.txt compilation configuration file
-int main(int argc, char **argv)
-{
-  ros::init(argc, argv, "YOUR_NODE_NAME");
-  ActiveFollower activefollower; //starts everything by calling constructor
 }
 
 //CLASS CONSTRUCTOR.
