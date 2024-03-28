@@ -16,7 +16,9 @@ class ActiveFollower
   //1) Subscriptions to topics
 	//CALLBACKS to attach to each topic. You need one callback per subscribed topic
 	//Replace "std_msgs::Int64" to MATCH the corresponding topic message type 
-    void myCallback1(const std_msgs::Int64::ConstPtr& msg);
+    void leftEncoderCallback(const std_msgs::Int64::ConstPtr& msg);
+    void rightEncoderCallback(const std_msgs::Int64::ConstPtr& msg);
+    void sonarCallback(const std_msgs::Int16::ConstPtr& msg);
 
   //2) Advertisements to topics to publish to, and associted messages
     ros::Publisher my_pub1; //one Publisher object pet topic 
@@ -42,18 +44,6 @@ int main(int argc, char **argv)
   ActiveFollower active_follower; //starts everything by calling constructor
 }
 
-// One callback function. You need one per subscribed topic
-// Part (or all) of the work can be done here
-//Replace "std_msgs::Int64" by the corresponding topic's message type
-void ActiveFollower::myCallback1(const std_msgs::Int64::ConstPtr& msg)
-{
-  int_data = msg->data;
-
-  //If the node needs to calculate and publish data, it can be done here
-  my_msg1.data = int_data * 2; //Dumb example, just publish twice the input value  
-  my_pub1.publish(my_msg1); 
-}
-
 //CLASS CONSTRUCTOR.
 //Usually all initialization goes here
 ActiveFollower::ActiveFollower()
@@ -74,3 +64,93 @@ ActiveFollower::ActiveFollower()
    ros::spin();  //Go to idle, the callback functions will do everything
 }
 
+// One callback function per subscribed topic
+// Part (or all) of the work can be done here
+//Replace "std_msgs::Int64" by the corresponding topic's message type
+//Callback function attached to the left encoder topic
+void SenseAndAvoid::leftEncoderCallback(const std_msgs::Int64::ConstPtr& msg)
+{
+  left_count = msg->data; //update left encoder pulse count
+}
+//Callback function attached to the right encoder topic
+void SenseAndAvoid::rightEncoderCallback(const std_msgs::Int64::ConstPtr& msg)
+{
+  right_count = msg->data; //update right encoder pulse count
+}
+
+//The sonar callback function is used to update the Finite State Machine (FSM)
+void SenseAndAvoid::sonarCallback(const std_msgs::Int16::ConstPtr& msg)
+{
+  int d = msg->data; //update sonar distance
+  //Evaluate FSM
+  switch(state){
+   case FORWARD: //currently moving forward
+     if((d>0)&&(d<OBJECT_DIST_NEAR)) //obstacle close, go reverse!
+     {
+      ROS_INFO("REVERSE");
+      state = REVERSE; //change state to reverse
+      vel_msg.linear.x = 0.0;
+      vel_msg.angular.z = 0.0;
+      vel_pub.publish(vel_msg); //stop
+     }
+     else //keep moving forward
+     {
+      ROS_INFO("Dist %d cm",d);
+      vel_msg.linear.x = LINEAR_SPEED;
+      vel_msg.angular.z = 0.0;
+      vel_pub.publish(vel_msg);
+     }
+     break;
+   case REVERSE: //currently reversing
+     if(d == 0) break; //no valid detection
+     else if(d>OBJECT_DIST_SAFE) //obstacle away, now turn
+     {
+      ROS_INFO("TURN");
+      state = TURN;
+      old_left_count = left_count;
+	  old_right_count = right_count;
+	  //generate random angle to rotate in MIN to MAX range
+	  alpha = MIN_ANGLE_DEG + rand()%(MAX_ANGLE_DEG - MIN_ANGLE_DEG); //deg
+	  alpha = alpha * PI / 180.0; //to rad
+     }
+     else //keep moving backward
+     {
+      //YOUR CODE HERE
+      ROS_INFO("Dist %d cm",d);
+      vel_msg.linear.x = LINEAR_SPEED*-1;
+      vel_msg.angular.z = 0.0;
+      vel_pub.publish(vel_msg);
+     }
+     break;
+   case TURN:
+     float theta = Rotation_rad();
+     if(theta > alpha) //turn complete
+     {
+      state = FORWARD;
+      ROS_INFO("FORWARD");
+      vel_msg.linear.x = 0.0;
+      vel_msg.angular.z = 0.0;
+      vel_pub.publish(vel_msg); //stop
+     }
+     else //keep rotating
+     {
+      ROS_INFO("Rotated %.1f, target %.1f",theta,alpha);
+      //YOUR CODE HERE
+      vel_msg.linear.x = 0.0;     //set linear speed to zero
+      vel_msg.angular.z = alpha;  //random angular speed calculated in case reverse  
+      vel_pub.publish(vel_msg);   //publish the message with new parameters
+     }
+	 break;
+  }//end switch
+}//end sonarCallback
+
+//calculates rotated angle from encoder readings
+//using the differential drive model
+float SenseAndAvoid::Rotation_rad()
+{
+	float angle;
+	int increment_l = left_count - old_left_count;
+	int increment_r = right_count - old_right_count;
+	angle = WHEEL_R*(increment_r - increment_l)/(TRACK_L * ENC_TICKS_RAD);
+	return angle;
+}
