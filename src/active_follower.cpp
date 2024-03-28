@@ -8,6 +8,15 @@
 //Add your own definitions here
 #define WHEEL_RADIUS 0.07
 
+
+
+enum STATE { STRAIGHT, TURN_RND, TURN_OPP }; //possible FSM states
+/*
+ * STRAIGHT - no    wall detected, keep going
+ * TURN_RND - FRONT wall detected, pick a random side
+ * TURN_OPP - SIDE  wall detected, follow wall PID 
+ */
+
 class ActiveFollower
 {
   public:
@@ -16,7 +25,12 @@ class ActiveFollower
   //1) Subscriptions to topics
 	//CALLBACKS to attach to each topic. You need one callback per subscribed topic
 	//Replace "std_msgs::Int64" to MATCH the corresponding topic message type 
-    void myCallback1(const std_msgs::Int64::ConstPtr& msg);
+  //void myCallback1(const std_msgs::Int64::ConstPtr& msg);
+
+  // CALLBACK FUNCTIONS FOR ALL 3 SONARS
+    void CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg);
+    void LeftSonarCallback(const std_msgs::Int16::ConstPtr& msg);
+    void RightSonarCallback(const std_msgs::Int16::ConstPtr& msg);
 
   //2) Advertisements to topics to publish to, and associted messages
     ros::Publisher my_pub1; //one Publisher object pet topic 
@@ -36,13 +50,30 @@ class ActiveFollower
 // One callback function. You need one per subscribed topic
 // Part (or all) of the work can be done here
 //Replace "std_msgs::Int64" by the corresponding topic's message type
-void ActiveFollower::myCallback1(const std_msgs::Int64::ConstPtr& msg)
+/*void ActiveFollower::myCallback1(const std_msgs::Int64::ConstPtr& msg)
 {
   int_data = msg->data;
 
   //If the node needs to calculate and publish data, it can be done here
   my_msg1.data = int_data * 2; //Dumb example, just publish twice the input value  
   my_pub1.publish(my_msg1); 
+}*/
+// CENTER
+void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg)
+{
+
+}
+
+// LEFT
+void ActiveFollower::LeftSonarCallback(const std_msgs::Int16::ConstPtr& msg)
+{
+
+}
+
+// RIGHT
+void ActiveFollower::RightSonarCallback(const std_msgs::Int16::ConstPtr& msg)
+{
+
 }
 
 // MAIN function.
