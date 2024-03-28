@@ -8,10 +8,10 @@
 //Add your own definitions here
 #define WHEEL_RADIUS 0.07
 
-class NodeClass
+class ActiveFollower
 {
   public:
-    NodeClass(); //CONSTRUCTOR. It will initialize the node
+    ActiveFollower(); //CONSTRUCTOR. It will initialize the node
   private: 	//CLASS METHODS (FUNCTIONS) AND MEMBERS (VARIABLES)
   //1) Subscriptions to topics
 	//CALLBACKS to attach to each topic. You need one callback per subscribed topic
@@ -36,7 +36,7 @@ class NodeClass
 // One callback function. You need one per subscribed topic
 // Part (or all) of the work can be done here
 //Replace "std_msgs::Int64" by the corresponding topic's message type
-void NodeClass::myCallback1(const std_msgs::Int64::ConstPtr& msg)
+void ActiveFollower::myCallback1(const std_msgs::Int64::ConstPtr& msg)
 {
   int_data = msg->data;
 
@@ -51,16 +51,16 @@ void NodeClass::myCallback1(const std_msgs::Int64::ConstPtr& msg)
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "YOUR_NODE_NAME");
-  NodeClass nodeclass; //starts everything by calling constructor
+  ActiveFollower activefollower; //starts everything by calling constructor
 }
 
 //CLASS CONSTRUCTOR.
 //Usually all initialization goes here
-NodeClass::NodeClass()
+ActiveFollower::ActiveFollower()
 {
 //1) Attach subscription callbacks. Subscriber objects like my_sub1 are needed but not mentioned again
   //Update the TOPIC_NAME and change "std_msgs::Int64" to its corresponding message type
-  ros::Subscriber my_sub1 = nh.subscribe<std_msgs::Int64>("/TOPIC_NAME", 10, &NodeClass::myCallback1, this);
+  ros::Subscriber my_sub1 = nh.subscribe<std_msgs::Int64>("/TOPIC_NAME", 10, &ActiveFollower::myCallback1, this);
 
 //2) Advertise to published topics
   //Choose the topic name you wish (no spaces!) and change "std_msgs::Int64" to your selected message type
