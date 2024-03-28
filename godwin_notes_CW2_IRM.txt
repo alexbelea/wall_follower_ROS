@@ -1,0 +1,15 @@
+3 things:
+
+create callback (like 27 to 29 line in sense and avoid). In week 5 lab.
+
+rename 29 - left or right 
+
+2. create subscription for left 
+
+
+3. subscribe to topics row 59 on
+
+
+then 83: read values from encoders wheels
+
+
