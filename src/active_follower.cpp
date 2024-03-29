@@ -1,6 +1,7 @@
 #include <math.h>
 #include <ros/ros.h>
 //you need to include the header for any ROS message type you use
+#include "std_msgs/Int16.h"
 #include "std_msgs/Int64.h"
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_broadcaster.h>
@@ -12,7 +13,7 @@
 
 enum STATE { STRAIGHT, TURN_RND, TURN_OPP }; //possible FSM states
 /*
- * STRAIGHT - no    wall detected, keep going
+ * STRAIGHT - no    wall detected, keep going forward
  * TURN_RND - FRONT wall detected, pick a random side
  * TURN_OPP - SIDE  wall detected, follow wall PID 
  */
@@ -31,7 +32,8 @@ class ActiveFollower
     void CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg);
     void LeftSonarCallback(const std_msgs::Int16::ConstPtr& msg);
     void RightSonarCallback(const std_msgs::Int16::ConstPtr& msg);
-
+	//node variables
+	STATE fsm_state; //robot's FSM state
   //2) Advertisements to topics to publish to, and associted messages
     ros::Publisher my_pub1; //one Publisher object pet topic 
     std_msgs::Int64 my_msg1; //one message object per topic, change "std_msgs::Int64" to the desired type
@@ -45,7 +47,49 @@ class ActiveFollower
     //Any other variable you may need to do your task
     long int int_data;  
 
+  // Subscribers to sonars
+    ros::Subscriber center_sonar_sub;     // subscriber for central sonar  topic /arduino/sonar_2
+    ros::Subscriber left_sonar_sub;       // subscriber for left sonar     topic /arduino/sonar_3
+    ros::Subscriber right_sonar_sub;      // subscriber for right sonar,   topic /arduino/sonar_1
+
 };
+//--------^END OF CLASS^--------
+
+// MAIN function.
+// UPDATE THE NODE NAME (don't use spaces, use underscores)
+// MATCH THIS NAME IN THE CMakeLists.txt compilation configuration file
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "active_follower"); //name should reflect what is in CMakeLists.txt target_link_libraries
+  ActiveFollower activefollower; //starts everything by calling constructor
+}
+//---^^END OF MAIN^^--------
+
+//CLASS CONSTRUCTOR.
+//Usually all initialization goes here
+ActiveFollower::ActiveFollower()
+{
+//1) Attach subscription callbacks. Subscriber objects like my_sub1 are needed but not mentioned again
+  //Update the TOPIC_NAME and change "std_msgs::Int64" to its corresponding message type
+  //                                              ("topic"           , Hz, address of callback function, pointer to the current object instance that the method belongs to )
+  center_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_2", 10, &ActiveFollower::CentralSonarCallback, this);
+  left_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_3", 10, &ActiveFollower::LeftSonarCallback, this);
+  right_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_1", 10, &ActiveFollower::RightSonarCallback, this);
+
+//2) Advertise to published topics
+  //Choose the topic name you wish (no spaces!) and change "std_msgs::Int64" to your selected message type
+  my_pub1 = nh.advertise<std_msgs::Int64>("/MY_TOPIC_NAME", 50);
+
+//3) initialize working variables
+  int_data = 0;
+
+// Node ready to rock. If ACTIVE operation, we call loop()
+// If REACTIVE ONLY operation (all done in callbacks), we just leave the node idle with ros::spin()
+   ros::spin();  //Go to idle, the callback functions will do everything
+}
+//---------^^END OF CONSTRUCTOR^^--------
+
+
 
 // One callback function. You need one per subscribed topic
 // Part (or all) of the work can be done here
@@ -74,34 +118,5 @@ void ActiveFollower::LeftSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 void ActiveFollower::RightSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
 
-}
-
-// MAIN function.
-// UPDATE THE NODE NAME (don't use spaces, use underscores)
-// MATCH THIS NAME IN THE CMakeLists.txt compilation configuration file
-int main(int argc, char **argv)
-{
-  ros::init(argc, argv, "active_follower"); //name should reflect what is in CMakeLists.txt target_link_libraries
-  ActiveFollower activefollower; //starts everything by calling constructor
-}
-
-//CLASS CONSTRUCTOR.
-//Usually all initialization goes here
-ActiveFollower::ActiveFollower()
-{
-//1) Attach subscription callbacks. Subscriber objects like my_sub1 are needed but not mentioned again
-  //Update the TOPIC_NAME and change "std_msgs::Int64" to its corresponding message type
-  ros::Subscriber my_sub1 = nh.subscribe<std_msgs::Int64>("/TOPIC_NAME", 10, &ActiveFollower::myCallback1, this);
-
-//2) Advertise to published topics
-  //Choose the topic name you wish (no spaces!) and change "std_msgs::Int64" to your selected message type
-  my_pub1 = nh.advertise<std_msgs::Int64>("/MY_TOPIC_NAME", 50);
-
-//3) initialize working variables
-  int_data = 0;
-
-// Node ready to rock. If ACTIVE operation, we call loop()
-// If REACTIVE ONLY operation (all done in callbacks), we just leave the node idle with ros::spin()
-   ros::spin();  //Go to idle, the callback functions will do everything
 }
 
