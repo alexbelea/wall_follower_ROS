@@ -182,15 +182,24 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
    else // FRONT & SIDE - keep turning away from wall until only side wall is detected
     {
       ROS_INFO("TURN_OPP_SIDE");
-      vel_msg.linear.x = LINEAR_SPEED;     //set linear speed to zero
-      if(left){
-        vel_msg.angular.z = ANGULAR_SPEED; // detected left wall so TURN RIGHT
+      vel_msg.linear.x = 0.0;     
+      if(left && !right){
+        vel_msg.angular.z = -ANGULAR_SPEED; // detected left wall so TURN RIGHT
       }
-      else if(right)
+      else if(right && !left)
       {
-        vel_msg.angular.z = -ANGULAR_SPEED; // detected right wall so TURN LEFT
+        vel_msg.angular.z = ANGULAR_SPEED; // detected right wall so TURN LEFT
       } 
-      else ROS_INFO("WTF");
+      else if(right && left){ //detected both LEFT and RIGHT
+        if(left_dist > right_dist){ // turned more to RIGHT, so keep turning RIGHT
+        vel_msg.angular.z = ANGULAR_SPEED/2;
+        }
+        else if(left_dist < right_dist){ // turned more to LEFT, so keep turning LEFT
+        vel_msg.angular.z = ANGULAR_SPEED/2;
+        }
+
+
+      }
       vel_pub.publish(vel_msg);   //publish the message with new parameters
     }
 
@@ -202,11 +211,11 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
 // needed to simpliy if statements
 void ActiveFollower::WallDetect(){
   // detect center wall
-  if( (center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED) ) center = true;
+  if( (center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED) ) center = true; else center = false;
 
   // detect left wall
-  if( (left_dist > 0) && (left_dist <= OBJECT_DIST_DETECTED) ) left = true;
+  if( (left_dist > 0) && (left_dist <= OBJECT_DIST_DETECTED) ) left = true; else left = false;
 
   // detect right wall
-  if( (right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED) ) right = true;
+  if( (right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED) ) right = true; else right = false;
 }
