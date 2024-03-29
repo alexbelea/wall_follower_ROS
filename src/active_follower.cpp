@@ -9,7 +9,7 @@
 //Add your own definitions here
 #define LINEAR_SPEED 0.3 // m/s
 #define ANGULAR_SPEED 0.7 // rad/s
-#define OBJECT_DIST_DETECTED 50 // cm
+#define OBJECT_DIST_DETECTED 80 // cm
 #define OBJECT_DIST_FOLLOW 30 // cm
 #define PI 3.1416
 #define MIN_ANGLE_DEG 
@@ -119,7 +119,9 @@ ActiveFollower::ActiveFollower()
 void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
   center_dist = msg->data;
+  // call the functions doing the work here
   UpdateFSM();
+  WallDetect();
 }
 
 // Callback function attached to LEFT sonar topic
@@ -137,17 +139,16 @@ void ActiveFollower::RightSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 void ActiveFollower::UpdateFSM()  // HERE all the magic happens
 { if(DEBUG){ //print info for debug
   ROS_INFO("\nfsm_state: %d\ncenter_dist: %d\nleft_dist: %d\nright_dist: %d", fsm_state, center_dist, left_dist, right_dist);
-  
+  ROS_INFO("\nCenter: %d\nLeft: %d\nRight: %d", center, left, right);
 }
   switch(fsm_state){
     case STRAIGHT:
-    if( !center && (left && right) ) // only SIDE detected, go to FOLLOW case
+    if( !center && (left || right) ) // only SIDE detected, go to FOLLOW case
       {
            ROS_INFO("Follow");
            fsm_state = FOLLOW;  
       }
-    else if( // Only FRONT or SIDE detected - go to TURN_OPP_SIDE
-        (center_dist >= 1) && (left_dist == 0) && (right_dist == 0) )
+    else if( center && (left || right) )//  CENTER and at least a SIDE detected - go to TURN_OPP_SIDE
       {
         ROS_INFO("TURN_OPP_SIDE");
         fsm_state = TURN_OPP_SIDE;
@@ -168,14 +169,12 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
    break;
 
    case TURN_OPP_SIDE: 
-   if(  // SIDE detected, not FRONT - go to FOLLOW
-       (center_dist == 0) && ( (left_dist >=1) || (right_dist >= 1) )  )
+   if( !center && ( left || right ) )  // SIDE detected, not CENTER - go to FOLLOW
       {
        ROS_INFO("FOLLOW");
        fsm_state = FOLLOW;
       }
-   else if( // no wall - go to STRAIGHT 
-            (center_dist == 0) && (left_dist ==0) && (right_dist ==0) )
+   else if( !center && !left && !right ) // no wall - go to STRAIGHT 
             {
               ROS_INFO("STRAIGHT");
               fsm_state = STRAIGHT;
@@ -184,7 +183,14 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
     {
       ROS_INFO("TURN_OPP_SIDE");
       vel_msg.linear.x = LINEAR_SPEED;     //set linear speed to zero
-      vel_msg.angular.z = ANGULAR_SPEED - LINEAR_SPEED;  //random angular speed calculated in case reverse  
+      if(left){
+        vel_msg.angular.z = ANGULAR_SPEED; // detected left wall so TURN RIGHT
+      }
+      else if(right)
+      {
+        vel_msg.angular.z = -ANGULAR_SPEED; // detected right wall so TURN LEFT
+      } 
+      else ROS_INFO("WTF");
       vel_pub.publish(vel_msg);   //publish the message with new parameters
     }
 
@@ -192,9 +198,10 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
   }
 }
 
+// detects walls within required distance and updates related bools
+// needed to simpliy if statements
 void ActiveFollower::WallDetect(){
   // detect center wall
-  ROS_INFO("detecting wall algo running, please be patient");
   if( (center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED) ) center = true;
 
   // detect left wall
