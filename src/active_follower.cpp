@@ -140,34 +140,47 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
            ROS_INFO("Follow");
            fsm_state = FOLLOW;  
       }
-    else if( // Only FRONT detected - go to TURN_OPP_SIDE
+    else if( // Only FRONT or SIDE detected - go to TURN_OPP_SIDE
         (center_dist >= 1) && (left_dist == 0) && (right_dist == 0) )
       {
         ROS_INFO("TURN_OPP_SIDE");
         fsm_state = TURN_OPP_SIDE;
       }
-    else if( // SIDE & FRONT detected -  go to TURN_OPP_SIDE
-        (center_dist >= 1) && ( (left_dist >= 1) || (right_dist) ){
-
-        }
-    )
-
-    break;
 
     else    // No walls detected- go straight
-    {
-      ROS_INFO("STRAIGHT");
-      vel_msg.linear.x = LINEAR_SPEED;
-      vel_msg.angular.z = 0.0;
-      vel_pub.publish(vel_msg);
-    }
+      {
+        ROS_INFO("STRAIGHT");
+        vel_msg.linear.x = LINEAR_SPEED;
+        vel_msg.angular.z = 0.0;
+        vel_pub.publish(vel_msg);
+      }
+    break;
 
-    //if solving for front+side detection, no need for trun opposite
    case FOLLOW:
+    ROS_INFO("INSIDE FOLLOW CASE");
 
    break;
 
-   case TURN_OPP_SIDE:
+   case TURN_OPP_SIDE: 
+   if(  // SIDE detected, not FRONT - go to FOLLOW
+       (center_dist == 0) && ( (left_dist >=1) || (right_dist >= 1) )  )
+      {
+       ROS_INFO("FOLLOW");
+       fsm_state = FOLLOW;
+      }
+   else if( // no wall - go to STRAIGHT 
+            (center_dist == 0) && (left_dist ==0) && (right_dist ==0) )
+            {
+              ROS_INFO("STRAIGHT");
+              fsm_state = STRAIGHT;
+            }
+   else // FRONT & SIDE - keep turning away from wall until only side wall is detected
+    {
+      ROS_INFO("TURN_OPP_SIDE");
+      vel_msg.linear.x = LINEAR_SPEED;     //set linear speed to zero
+      vel_msg.angular.z = ANGULAR_SPEED - LINEAR_SPEED;  //random angular speed calculated in case reverse  
+      vel_pub.publish(vel_msg);   //publish the message with new parameters
+    }
 
    break;
   }

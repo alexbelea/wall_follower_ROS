@@ -10,4 +10,5 @@ Steps to compile and run ROS:
 
     5. roslaunch jet_gazebo jet_gazebo.launch
 
+Other terminal:
     6. rosrun wall_follower_ROS active_follower
