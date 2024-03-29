@@ -15,10 +15,10 @@
 #define MIN_ANGLE_DEG 
 #define DEBUG 1  //switch this to 1 to see debug info in command line
 
-enum STATE { STRAIGHT, TURN_RND, FOLLOW }; //possible FSM states
+enum STATE { STRAIGHT, TURN_OPP_SIDE, FOLLOW }; //possible FSM states
 /*
  * STRAIGHT - no    wall detected, keep going forward
- * TURN_RND - FRONT wall detected, pick a random side
+ * TURN_OPP_SIDE - FRONT wall detected, pick a random side
  * FOLLOW - SIDE  wall detected, follow wall PID 
  */
 
@@ -127,26 +127,34 @@ void ActiveFollower::RightSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 }
 
 void ActiveFollower::UpdateFSM()  // HERE all the magic happens
-{ if(DEBUG){
+{ if(DEBUG){ //print info for debug
   ROS_INFO("\nfsm_state: %d\ncenter_dist: %d\nleft_dist: %d\nright_dist: %d", fsm_state, center_dist, left_dist, right_dist);
   
 }
   switch(fsm_state){
     case STRAIGHT:
-    if(   // side wall detected but no front wall, go to FOLLOW case
+    if(   // only SIDE detected, go to FOLLOW case
         (center_dist == 0) &&      
-        ( (left_dist >= 1) || (right_dist >= 1) ) 
-      ){
+            ( (left_dist >= 1) || (right_dist >= 1) ) )
+      {
            ROS_INFO("Follow");
            fsm_state = FOLLOW;  
-       }
-    else if( // Only FRONT detected - turn randomly (or not random...to be decided)
-        (center_dist >= 1) && (left_dist == 0) && (right_dist == 0)
-    ){
-      ROS_INFO("TURN_RND");
-      fsm_state = TURN_RND;
-    }
-    else    // No walls detected at all - keep going straight
+      }
+    else if( // Only FRONT detected - go to TURN_OPP_SIDE
+        (center_dist >= 1) && (left_dist == 0) && (right_dist == 0) )
+      {
+        ROS_INFO("TURN_OPP_SIDE");
+        fsm_state = TURN_OPP_SIDE;
+      }
+    else if( // SIDE & FRONT detected -  go to TURN_OPP_SIDE
+        (center_dist >= 1) && ( (left_dist >= 1) || (right_dist) ){
+
+        }
+    )
+
+    break;
+
+    else    // No walls detected- go straight
     {
       ROS_INFO("STRAIGHT");
       vel_msg.linear.x = LINEAR_SPEED;
@@ -154,8 +162,13 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
       vel_pub.publish(vel_msg);
     }
 
-    break;
+    //if solving for front+side detection, no need for trun opposite
+   case FOLLOW:
 
-   // case FOLLOW:
+   break;
+
+   case TURN_OPP_SIDE:
+
+   break;
   }
 }
