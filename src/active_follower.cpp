@@ -37,6 +37,7 @@ class ActiveFollower
     void LeftSonarCallback(const std_msgs::Int16::ConstPtr& msg);
     void RightSonarCallback(const std_msgs::Int16::ConstPtr& msg);
     void UpdateFSM(); // Function where FSM is updated
+    void WallDetect();
 	//node variables
 	STATE fsm_state; //robot's FSM state
   //2) Advertisements to topics to publish to, and associted messages
@@ -53,6 +54,9 @@ class ActiveFollower
       
     int center_dist, left_dist, right_dist;
     geometry_msgs::Twist vel_msg; //Twist message to publish
+
+         // bools to keep track of wall detection
+    bool center, left, right;
 
   // Subscribers to sonars
     ros::Subscriber center_sonar_sub;     // subscriber for central sonar  topic /arduino/sonar_2
@@ -95,6 +99,10 @@ ActiveFollower::ActiveFollower()
   left_dist   = 0;
   right_dist  = 0;
 
+  center = false;
+  left = false;
+  right = false;
+
 // Node ready to rock. If ACTIVE operation, we call loop()
 // If REACTIVE ONLY operation (all done in callbacks), we just leave the node idle with ros::spin()
    ros::spin();  //Go to idle, the callback functions will do everything
@@ -133,9 +141,7 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
 }
   switch(fsm_state){
     case STRAIGHT:
-    if(   // only SIDE detected, go to FOLLOW case
-        (center_dist == 0) &&      
-            ( (left_dist >= 1) || (right_dist >= 1) ) )
+    if( !center && (left && right) ) // only SIDE detected, go to FOLLOW case
       {
            ROS_INFO("Follow");
            fsm_state = FOLLOW;  
@@ -184,4 +190,16 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
 
    break;
   }
+}
+
+void ActiveFollower::WallDetect(){
+  // detect center wall
+  ROS_INFO("detecting wall algo running, please be patient");
+  if( (center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED) ) center = true;
+
+  // detect left wall
+  if( (left_dist > 0) && (left_dist <= OBJECT_DIST_DETECTED) ) left = true;
+
+  // detect right wall
+  if( (right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED) ) right = true;
 }
