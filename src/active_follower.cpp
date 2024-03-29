@@ -7,15 +7,19 @@
 #include <tf/transform_broadcaster.h>
 
 //Add your own definitions here
-#define WHEEL_RADIUS 0.07
+#define LINEAR_SPEED 0.3 // m/s
+#define ANGULAR_SPEED 0.7 // rad/s
+#define OBJECT_DIST_DETECTED 50 // cm
+#define OBJECT_DIST_FOLLOW 30 // cm
+#define PI 3.1416
+#define MIN_ANGLE_DEG 
+#define DEBUG 1  //switch this to 1 to see debug info in command line
 
-
-
-enum STATE { STRAIGHT, TURN_RND, TURN_OPP }; //possible FSM states
+enum STATE { STRAIGHT, TURN_RND, FOLLOW }; //possible FSM states
 /*
  * STRAIGHT - no    wall detected, keep going forward
  * TURN_RND - FRONT wall detected, pick a random side
- * TURN_OPP - SIDE  wall detected, follow wall PID 
+ * FOLLOW - SIDE  wall detected, follow wall PID 
  */
 
 class ActiveFollower
@@ -32,20 +36,23 @@ class ActiveFollower
     void CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg);
     void LeftSonarCallback(const std_msgs::Int16::ConstPtr& msg);
     void RightSonarCallback(const std_msgs::Int16::ConstPtr& msg);
+    void UpdateFSM(); // Function where FSM is updated
 	//node variables
 	STATE fsm_state; //robot's FSM state
   //2) Advertisements to topics to publish to, and associted messages
-    ros::Publisher my_pub1; //one Publisher object pet topic 
-    std_msgs::Int64 my_msg1; //one message object per topic, change "std_msgs::Int64" to the desired type
+    ros::Publisher vel_pub;   //publisher for /cmd_vel
 	
   //3) Any other function you may need
     //You can usually do most stuff into the callback functions
 	
   //4) Class members
-    ros::NodeHandle nh; //ROS main node handler
+    ros::NodeHandle nh;       //ROS main node handler
+
 
     //Any other variable you may need to do your task
-    long int int_data;  
+      
+    int center_dist, left_dist, right_dist;
+    geometry_msgs::Twist vel_msg; //Twist message to publish
 
   // Subscribers to sonars
     ros::Subscriber center_sonar_sub;     // subscriber for central sonar  topic /arduino/sonar_2
@@ -78,10 +85,15 @@ ActiveFollower::ActiveFollower()
 
 //2) Advertise to published topics
   //Choose the topic name you wish (no spaces!) and change "std_msgs::Int64" to your selected message type
-  my_pub1 = nh.advertise<std_msgs::Int64>("/MY_TOPIC_NAME", 50);
+
+  vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 10); // for publishing the speeds
 
 //3) initialize working variables
-  int_data = 0;
+  
+  fsm_state = STRAIGHT; // initially the robot goes straight until any wall is found;
+  center_dist = 0;
+  left_dist   = 0;
+  right_dist  = 0;
 
 // Node ready to rock. If ACTIVE operation, we call loop()
 // If REACTIVE ONLY operation (all done in callbacks), we just leave the node idle with ros::spin()
@@ -94,29 +106,56 @@ ActiveFollower::ActiveFollower()
 // One callback function. You need one per subscribed topic
 // Part (or all) of the work can be done here
 //Replace "std_msgs::Int64" by the corresponding topic's message type
-/*void ActiveFollower::myCallback1(const std_msgs::Int64::ConstPtr& msg)
-{
-  int_data = msg->data;
 
-  //If the node needs to calculate and publish data, it can be done here
-  my_msg1.data = int_data * 2; //Dumb example, just publish twice the input value  
-  my_pub1.publish(my_msg1); 
-}*/
-// CENTER
+// Callback function attached to CENTER sonar topic
 void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
-
+  center_dist = msg->data;
+  UpdateFSM();
 }
 
-// LEFT
+// Callback function attached to LEFT sonar topic
 void ActiveFollower::LeftSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
-
+  left_dist = msg->data;
 }
 
-// RIGHT
+// Callback function attached to RIGHT sonar topic
 void ActiveFollower::RightSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
-
+  right_dist = msg->data;
 }
 
+void ActiveFollower::UpdateFSM()  // HERE all the magic happens
+{ if(DEBUG){
+  ROS_INFO("\nfsm_state: %d\ncenter_dist: %d\nleft_dist: %d\nright_dist: %d", fsm_state, center_dist, left_dist, right_dist);
+  
+}
+  switch(fsm_state){
+    case STRAIGHT:
+    if(   // side wall detected but no front wall, go to FOLLOW case
+        (center_dist == 0) &&      
+        ( (left_dist >= 1) || (right_dist >= 1) ) 
+      ){
+           ROS_INFO("Follow");
+           fsm_state = FOLLOW;  
+       }
+    else if( // Only FRONT detected - turn randomly (or not random...to be decided)
+        (center_dist >= 1) && (left_dist == 0) && (right_dist == 0)
+    ){
+      ROS_INFO("TURN_RND");
+      fsm_state = TURN_RND;
+    }
+    else    // No walls detected at all - keep going straight
+    {
+      ROS_INFO("STRAIGHT");
+      vel_msg.linear.x = LINEAR_SPEED;
+      vel_msg.angular.z = 0.0;
+      vel_pub.publish(vel_msg);
+    }
+
+    break;
+
+   // case FOLLOW:
+  }
+}
