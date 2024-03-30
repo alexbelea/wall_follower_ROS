@@ -15,6 +15,7 @@
 #define OBJECT_DIST_FOLLOW 40 // cm
 #define PI 3.1416
 #define MIN_ANGLE_DEG
+#define POLL_RATE 20.0
 
 
 // PID control
@@ -71,7 +72,11 @@ class ActiveFollower
 
     bool center, left, right;// bools to keep track of wall detection
 
-    double error, previous_error, derivative, integral; // PID controller vars
+    double error,
+       previous_error,
+         derivative,
+           integral,
+             old_left_dist, old_right_dist; // PID controller vars
 
 
 
@@ -100,9 +105,9 @@ ActiveFollower::ActiveFollower()
 //1) Attach subscription callbacks. Subscriber objects like my_sub1 are needed but not mentioned again
   //Update the TOPIC_NAME and change "std_msgs::Int64" to its corresponding message type
   //                                              ("topic"           , Hz, address of callback function, pointer to the current object instance that the method belongs to )
-  center_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_2", 10, &ActiveFollower::CentralSonarCallback, this);
-  left_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_3", 10, &ActiveFollower::LeftSonarCallback, this);
-  right_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_1", 10, &ActiveFollower::RightSonarCallback, this);
+  center_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_2", POLL_RATE, &ActiveFollower::CentralSonarCallback, this);
+  left_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_3", POLL_RATE, &ActiveFollower::LeftSonarCallback, this);
+  right_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_1", POLL_RATE, &ActiveFollower::RightSonarCallback, this);
 
 //2) Advertise to published topics
   //Choose the topic name you wish (no spaces!) and change "std_msgs::Int64" to your selected message type
@@ -142,8 +147,8 @@ void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
   center_dist = msg->data;
   // call the functions doing the work here
-  UpdateFSM();
   WallDetect();
+  UpdateFSM();
 
 }
 
@@ -187,18 +192,15 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
     break;
 
    case FOLLOW:
-   if( (left ^ right) && !center){  //if only left XOR right detected and NOT CENTER do follow logic 
+    if( center && (left || right) ){ //if CENTER and either left or right, go to turn opp side)
+    ROS_INFO("TURN_OPP_SIDE");
+    fsm_state = TURN_OPP_SIDE;
+   }
+   else{  //do follow PID logic 
     integral = 0; //reset integral before calling PIDcontrol   to avoid PID going bananas
     derivative = 0;
     PIDcontrol();
    }
-
-   else if( center && (left || right) ){ //if CENTER and either left or right, go to turn opp side)
-    fsm_state = TURN_OPP_SIDE;
-    //ROS_INFO("maybe should have TURNED OPP SIDE");
-   }
-
-
    break;
 
    case TURN_OPP_SIDE: 
@@ -223,7 +225,7 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
       {
         vel_msg.angular.z = ANGULAR_SPEED; // detected right wall so TURN LEFT
       } 
-      else if(right && left){ //detected both LEFT and RIGHT
+      else if(right && left){       // detected both LEFT and RIGHT
         if(left_dist > right_dist){ // turned more to RIGHT, so keep turning RIGHT
         vel_msg.angular.z = ANGULAR_SPEED/2;
         }
@@ -268,12 +270,12 @@ void ActiveFollower::PIDcontrol() {
       }
 
     // Update integral and avoid windup
-    if(abs(error) < ERROR_MAX) integral += error; // only add error if below threshold
+    if(abs(error) < ERROR_MAX) integral += error* (1/POLL_RATE); // only add error if below threshold
 
     // Calculate derivative
     //derivative = error - previous_error;
-    if(left) { derivative = (left_dist - old_left_dist) / 0.1 } // for left side
-    if(right){ derivative = (right_dist - old_right_dist) / 0.1 } // for right side
+    if(left) { derivative = (left_dist - old_left_dist) / (10/POLL_RATE); } // for left side
+    if(right){ derivative = (right_dist - old_right_dist) / (10/POLL_RATE); } // for right side
 
     // Calculate PID_output <-- distance to OBJECT_DIST_DETECTED
     PID_output = KP * (error + KI * integral + KD * derivative);
@@ -294,7 +296,7 @@ void ActiveFollower::PIDcontrol() {
     }
     if(DEBUG){
       ROS_INFO("~~~~~~~~~~PID loop~~~~~~~~~~");
-      ROS_INFO("PID output: %f\nTheta: %f\nIntegral: %f\nDerivative: %f\nError: %f", PID_output, theta, integral, derivative, error);
+      ROS_INFO("PID output: %f\nTheta: %f\nIntegral: %f\nDerivative: %f\nError: %f\nOld Left Dist: %f\nOld Right Dist: %f", PID_output, theta, integral, derivative, error, old_left_dist, old_right_dist);
       }
     //Apply speeds 
     vel_msg.linear.x = LINEAR_SPEED;
