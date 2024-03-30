@@ -20,9 +20,9 @@
 
 // PID control
 #define KP 0.2
-#define KI 0.005
-#define KD 0.06
-#define ERROR_MAX 30
+#define KI 0.000 //start at zero to fine-tune
+#define KD 0.000
+#define ERROR_MAX 10
 
 enum STATE { STRAIGHT, TURN_OPP_SIDE, FOLLOW }; //possible FSM states
 
@@ -270,12 +270,12 @@ void ActiveFollower::PIDcontrol() {
       }
 
     // Update integral and avoid windup
-    if(abs(error) < ERROR_MAX) integral += error* (1/POLL_RATE); // only add error if below threshold
+    if(abs(error) > ERROR_MAX) integral += error* (1/POLL_RATE); // only add error if below threshold
 
     // Calculate derivative
     //derivative = error - previous_error;
-    if(left) { derivative = (left_dist - old_left_dist) / (10/POLL_RATE); } // for left side
-    if(right){ derivative = (right_dist - old_right_dist) / (10/POLL_RATE); } // for right side
+    if(left) { derivative = (left_dist - old_left_dist) / (1/POLL_RATE); } // for left side
+    if(right){ derivative = (right_dist - old_right_dist) / (1/POLL_RATE); } // for right side
 
     // Calculate PID_output <-- distance to OBJECT_DIST_DETECTED
     PID_output = KP * (error + KI * integral + KD * derivative);
