@@ -12,21 +12,26 @@
 #define LINEAR_SPEED 0.3 // m/s
 #define ANGULAR_SPEED 0.7 // rad/s
 #define OBJECT_DIST_DETECTED 80 // cm
-#define OBJECT_DIST_FOLLOW 30 // cm
+#define OBJECT_DIST_FOLLOW 40 // cm
 #define PI 3.1416
-#define MIN_ANGLE_DEG 
+#define MIN_ANGLE_DEG
+
 
 // PID control
 #define KP 0.2
-#define KI 0.01
-#define KD 0.1
+#define KI 0.005
+#define KD 0.06
+#define ERROR_MAX 30
 
 enum STATE { STRAIGHT, TURN_OPP_SIDE, FOLLOW }; //possible FSM states
+
 /*
  * STRAIGHT - no    wall detected, keep going forward
  * TURN_OPP_SIDE - FRONT wall detected, pick a random side
  * FOLLOW - SIDE  wall detected, follow wall PID 
  */
+
+//enum DIR { CW, CC}; // keep track of follow direction clockwise/counterclockwise //not sure if needed
 
 class ActiveFollower
 {
@@ -67,6 +72,8 @@ class ActiveFollower
     bool center, left, right;// bools to keep track of wall detection
 
     double error, previous_error, derivative, integral; // PID controller vars
+
+
 
   // Subscribers to sonars
     ros::Subscriber center_sonar_sub;     // subscriber for central sonar  topic /arduino/sonar_2
@@ -180,11 +187,15 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
     break;
 
    case FOLLOW:
-   if( (left ^ !right) && !center){  //if only left XOR right detected and NOT CENTER do follow logic 
+   if( (left ^ right) && !center){  //if only left XOR right detected and NOT CENTER do follow logic 
+    integral = 0; //reset integral before calling PIDcontrol   to avoid PID going bananas
+    derivative = 0;
     PIDcontrol();
    }
+
    else if( center && (left || right) ){ //if CENTER and either left or right, go to turn opp side)
     fsm_state = TURN_OPP_SIDE;
+    //ROS_INFO("maybe should have TURNED OPP SIDE");
    }
 
 
@@ -247,9 +258,9 @@ void ActiveFollower::PIDcontrol() {
   
     double PID_output;
     double theta;
-    // Calculate error
-    if(left)  error = OBJECT_DIST_FOLLOW - left_dist;
-    else if(right) error = OBJECT_DIST_FOLLOW - right_dist;
+    // Calculate error for left or right, and only if distance not zero (wrong reading)
+    if     (left && (left_dist != 0)  ) error = OBJECT_DIST_FOLLOW - left_dist;
+    else if(right && (right_dist !=0) ) error = OBJECT_DIST_FOLLOW - right_dist;
     else{ //no walls detected, return to state 0
       error = 0;
       fsm_state = STRAIGHT;
@@ -257,18 +268,21 @@ void ActiveFollower::PIDcontrol() {
       }
 
     // Update integral and avoid windup
-    integral += error;
+    if(abs(error) < ERROR_MAX) integral += error; // only add error if below threshold
 
     // Calculate derivative
-    derivative = error - previous_error;
+    //derivative = error - previous_error;
+    if(left) { derivative = (left_dist - old_left_dist) / 0.1 } // for left side
+    if(right){ derivative = (right_dist - old_right_dist) / 0.1 } // for right side
 
     // Calculate PID_output <-- distance to OBJECT_DIST_DETECTED
-    PID_output = KP * error + KI * integral + KD * derivative;
-    if(DEBUG)ROS_INFO("PID output: %f", PID_output);
+    PID_output = KP * (error + KI * integral + KD * derivative);
 
-    // Update previous error
-    previous_error = error;
-
+    // Update previous 
+    //previous_error = error;
+    old_left_dist = left_dist;
+    old_right_dist = right_dist;
+    
     // convert PID_output to angle theta to output
     theta = tan(PID_output/2);
 
@@ -278,7 +292,10 @@ void ActiveFollower::PIDcontrol() {
     else if(theta < -PI ){ 
       theta = -PI;
     }
-    if(DEBUG)ROS_INFO("Theta: %f", theta);
+    if(DEBUG){
+      ROS_INFO("~~~~~~~~~~PID loop~~~~~~~~~~");
+      ROS_INFO("PID output: %f\nTheta: %f\nIntegral: %f\nDerivative: %f\nError: %f", PID_output, theta, integral, derivative, error);
+      }
     //Apply speeds 
     vel_msg.linear.x = LINEAR_SPEED;
     vel_msg.angular.z = theta;
