@@ -6,6 +6,8 @@
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_broadcaster.h>
 
+#define DEBUG 1  //switch this to 1 to see debug info in command line
+
 //Add your own definitions here
 #define LINEAR_SPEED 0.3 // m/s
 #define ANGULAR_SPEED 0.7 // rad/s
@@ -13,7 +15,11 @@
 #define OBJECT_DIST_FOLLOW 30 // cm
 #define PI 3.1416
 #define MIN_ANGLE_DEG 
-#define DEBUG 1  //switch this to 1 to see debug info in command line
+
+// PID control
+#define KP 0.2
+#define KI 0.01
+#define KD 0.1
 
 enum STATE { STRAIGHT, TURN_OPP_SIDE, FOLLOW }; //possible FSM states
 /*
@@ -38,6 +44,7 @@ class ActiveFollower
     void RightSonarCallback(const std_msgs::Int16::ConstPtr& msg);
     void UpdateFSM(); // Function where FSM is updated
     void WallDetect();
+    void PIDcontrol();
 	//node variables
 	STATE fsm_state; //robot's FSM state
   //2) Advertisements to topics to publish to, and associted messages
@@ -51,12 +58,15 @@ class ActiveFollower
 
 
     //Any other variable you may need to do your task
-      
-    int center_dist, left_dist, right_dist;
+
+    
+    int center_dist, left_dist, right_dist;// variables holding distance values
+    
     geometry_msgs::Twist vel_msg; //Twist message to publish
 
-         // bools to keep track of wall detection
-    bool center, left, right;
+    bool center, left, right;// bools to keep track of wall detection
+
+    double error, previous_error, derivative, integral; // PID controller vars
 
   // Subscribers to sonars
     ros::Subscriber center_sonar_sub;     // subscriber for central sonar  topic /arduino/sonar_2
@@ -103,6 +113,11 @@ ActiveFollower::ActiveFollower()
   left = false;
   right = false;
 
+  error            = 0;
+  previous_error   = 0;
+  derivative       = 0;
+  integral         = 0;
+
 // Node ready to rock. If ACTIVE operation, we call loop()
 // If REACTIVE ONLY operation (all done in callbacks), we just leave the node idle with ros::spin()
    ros::spin();  //Go to idle, the callback functions will do everything
@@ -122,6 +137,7 @@ void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg)
   // call the functions doing the work here
   UpdateFSM();
   WallDetect();
+
 }
 
 // Callback function attached to LEFT sonar topic
@@ -164,7 +180,13 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
     break;
 
    case FOLLOW:
-    ROS_INFO("INSIDE FOLLOW CASE");
+   if( (left ^ !right) && !center){  //if only left XOR right detected and NOT CENTER do follow logic 
+    PIDcontrol();
+   }
+   else if( center && (left || right) ){ //if CENTER and either left or right, go to turn opp side)
+    fsm_state = TURN_OPP_SIDE;
+   }
+
 
    break;
 
@@ -218,4 +240,47 @@ void ActiveFollower::WallDetect(){
 
   // detect right wall
   if( (right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED) ) right = true; else right = false;
+}
+
+
+void ActiveFollower::PIDcontrol() {
+  
+    double PID_output;
+    double theta;
+    // Calculate error
+    if(left)  error = OBJECT_DIST_FOLLOW - left_dist;
+    else if(right) error = OBJECT_DIST_FOLLOW - right_dist;
+    else{ //no walls detected, return to state 0
+      error = 0;
+      fsm_state = STRAIGHT;
+      ROS_INFO("NO SIDE WALL DETECTED");
+      }
+
+    // Update integral and avoid windup
+    integral += error;
+
+    // Calculate derivative
+    derivative = error - previous_error;
+
+    // Calculate PID_output <-- distance to OBJECT_DIST_DETECTED
+    PID_output = KP * error + KI * integral + KD * derivative;
+    if(DEBUG)ROS_INFO("PID output: %f", PID_output);
+
+    // Update previous error
+    previous_error = error;
+
+    // convert PID_output to angle theta to output
+    theta = tan(PID_output/2);
+
+    if( theta > PI ){  // check if theta greater than +-180 degrees, limit
+      theta = PI;
+    }
+    else if(theta < -PI ){ 
+      theta = -PI;
+    }
+    if(DEBUG)ROS_INFO("Theta: %f", theta);
+    //Apply speeds 
+    vel_msg.linear.x = LINEAR_SPEED;
+    vel_msg.angular.z = theta;
+    vel_pub.publish(vel_msg);
 }
