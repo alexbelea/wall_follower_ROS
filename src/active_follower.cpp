@@ -5,6 +5,7 @@
 #include "std_msgs/Int64.h"
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_broadcaster.h>
+#include <vector>
 
 #define DEBUG 1  //switch this to 1 to see debug info in command line
 
@@ -15,7 +16,7 @@
 #define OBJECT_DIST_FOLLOW 40 // cm
 #define PI 3.1416
 #define MIN_ANGLE_DEG
-#define POLL_RATE 20.0
+#define POLL_RATE 50.0
 
 
 // PID control
@@ -23,6 +24,9 @@
 #define KI 0.01 //start at zero to fine-tune
 #define KD 0.02
 #define ERROR_MAX 10
+
+//Low Pass Filter
+#define FILTER_SIZE 5
 
 enum STATE { STRAIGHT, TURN_OPP_SIDE, FOLLOW }; //possible FSM states
 
@@ -51,6 +55,8 @@ class ActiveFollower
     void UpdateFSM(); // Function where FSM is updated
     void WallDetect();
     void PIDcontrol();
+    void DistanceFilter();
+
 	//node variables
 	STATE fsm_state; //robot's FSM state
   //2) Advertisements to topics to publish to, and associted messages
@@ -63,9 +69,13 @@ class ActiveFollower
     ros::NodeHandle nh;       //ROS main node handler
 
 
-    //Any other variable you may need to do your task
+ // Distance filters:
+     std::vector<int> center_sensor_buffer; //holds the values - increasing the buffer makes reactino slower!
+     std::vector<int> left_sensor_buffer; 
+     std::vector<int> right_sensor_buffer; 
+    int center_raw, left_raw, right_raw;    //RAW unfiltered distances
 
-    
+    //Any other variable you may need to do your task    
     int center_dist, left_dist, right_dist;// variables holding distance values
     
     geometry_msgs::Twist vel_msg; //Twist message to publish
@@ -121,6 +131,10 @@ ActiveFollower::ActiveFollower()
   left_dist   = 0;
   right_dist  = 0;
 
+  center_raw = 0;
+  left_raw = 0;
+  right_raw = 0;
+
   center = false;
   left = false;
   right = false;
@@ -129,6 +143,12 @@ ActiveFollower::ActiveFollower()
   previous_error   = 0;
   derivative       = 0;
   integral         = 0;
+
+  // initilize buffer vectors 
+  center_sensor_buffer.resize(FILTER_SIZE, 0);
+  left_sensor_buffer.resize(FILTER_SIZE, 0);
+  right_sensor_buffer.resize(FILTER_SIZE, 0);
+
 
 // Node ready to rock. If ACTIVE operation, we call loop()
 // If REACTIVE ONLY operation (all done in callbacks), we just leave the node idle with ros::spin()
@@ -145,8 +165,9 @@ ActiveFollower::ActiveFollower()
 // Callback function attached to CENTER sonar topic
 void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
-  center_dist = msg->data;
+  center_raw = msg->data;
   // call the functions doing the work here
+  DistanceFilter();
   WallDetect();
   UpdateFSM();
 
@@ -155,13 +176,13 @@ void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 // Callback function attached to LEFT sonar topic
 void ActiveFollower::LeftSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
-  left_dist = msg->data;
+  left_raw = msg->data;
 }
 
 // Callback function attached to RIGHT sonar topic
 void ActiveFollower::RightSonarCallback(const std_msgs::Int16::ConstPtr& msg)
 {
-  right_dist = msg->data;
+  right_raw = msg->data;
 }
 
 void ActiveFollower::UpdateFSM()  // HERE all the magic happens
@@ -187,7 +208,7 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
         ROS_INFO("STRAIGHT");
         vel_msg.linear.x = LINEAR_SPEED;
         vel_msg.angular.z = 0.0;
-        vel_pub.publish(vel_msg);
+        //vel_pub.publish(vel_msg);
       }
     break;
 
@@ -236,7 +257,7 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
 
 
       }
-      vel_pub.publish(vel_msg);   //publish the message with new parameters
+      //vel_pub.publish(vel_msg);   //publish the message with new parameters
     }
 
    break;
@@ -302,5 +323,46 @@ void ActiveFollower::PIDcontrol() {
     //Apply speeds 
     vel_msg.linear.x = LINEAR_SPEED;
     vel_msg.angular.z = theta;
-    vel_pub.publish(vel_msg);
+    //vel_pub.publish(vel_msg);
+}
+
+
+
+void ActiveFollower::DistanceFilter(){ // add low pass filter to remove unwanted zeros
+        // CENTER BUFFER
+        center_sensor_buffer.pop_back(); // Remove oldest value
+        center_sensor_buffer.insert(center_sensor_buffer.begin(), center_raw); // Add new reading
+
+        // LEFT BUFFER
+        left_sensor_buffer.pop_back(); // Remove oldest value
+        left_sensor_buffer.insert(left_sensor_buffer.begin(), left_raw); // Add new reading
+        
+        // RIGHT BUFFER
+        right_sensor_buffer.pop_back(); // Remove oldest value
+        right_sensor_buffer.insert(right_sensor_buffer.begin(), right_raw); // Add new reading
+
+
+        // Calculate averages and output CENTER
+        double sumCenter = 0.0;
+        for (int i = 0; i < center_sensor_buffer.size(); i++) {
+            sumCenter += center_sensor_buffer[i];
+        }
+        center_dist =  sumCenter / FILTER_SIZE;
+
+        // Calculate averages and output LEFT
+        double sumLeft = 0.0;
+        for (int i = 0; i < left_sensor_buffer.size(); i++) {
+            sumLeft += left_sensor_buffer[i];
+        }
+        left_dist =  sumLeft / FILTER_SIZE;
+
+        // Calculate averages and output Right
+        double sumRight = 0.0;
+        for (int i = 0; i < right_sensor_buffer.size(); i++) {
+            sumRight += right_sensor_buffer[i];
+        }
+        right_dist =  sumRight / FILTER_SIZE;
+    
+
+
 }
