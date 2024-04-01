@@ -10,8 +10,8 @@
 
 //Add your own definitions here
 #define LINEAR_SPEED 0.3 // m/s
-#define ANGULAR_SPEED 0.7 // rad/s
-#define OBJECT_DIST_DETECTED 80 // cm
+#define ANGULAR_SPEED 0.5 // rad/s
+#define OBJECT_DIST_DETECTED 90 // cm
 #define OBJECT_DIST_FOLLOW 40 // cm
 #define PI 3.1416
 #define MIN_ANGLE_DEG
@@ -19,9 +19,9 @@
 
 
 // PID control
-#define KP 0.2
-#define KI 0.000 //start at zero to fine-tune
-#define KD 0.000
+#define KP 0.1
+#define KI 0.01 //start at zero to fine-tune
+#define KD 0.02
 #define ERROR_MAX 10
 
 enum STATE { STRAIGHT, TURN_OPP_SIDE, FOLLOW }; //possible FSM states
@@ -192,7 +192,7 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
     break;
 
    case FOLLOW:
-    if( center && (left || right) ){ //if CENTER and either left or right, go to turn opp side)
+    if( center && (left || right) ){ //if CENTER and either left or right, go to turn opp side to turn corner 
     ROS_INFO("TURN_OPP_SIDE");
     fsm_state = TURN_OPP_SIDE;
    }
@@ -225,7 +225,8 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
       {
         vel_msg.angular.z = ANGULAR_SPEED; // detected right wall so TURN LEFT
       } 
-      else if(right && left){       // detected both LEFT and RIGHT
+      else if(right && left){       // detected both LEFT and RIGHT - turn based on comparing distance
+
         if(left_dist > right_dist){ // turned more to RIGHT, so keep turning RIGHT
         vel_msg.angular.z = ANGULAR_SPEED/2;
         }
@@ -296,7 +297,7 @@ void ActiveFollower::PIDcontrol() {
     }
     if(DEBUG){
       ROS_INFO("~~~~~~~~~~PID loop~~~~~~~~~~");
-      ROS_INFO("PID output: %f\nTheta: %f\nIntegral: %f\nDerivative: %f\nError: %f\nOld Left Dist: %f\nOld Right Dist: %f", PID_output, theta, integral, derivative, error, old_left_dist, old_right_dist);
+      ROS_INFO("PID output: %.3f\nTheta: %.3f\nIntegral: %.3f\nDerivative: %.1f\nError: %.1f\nOld Left Dist: %.1f\nOld Right Dist: %.1f", PID_output, theta, integral, derivative, error, old_left_dist, old_right_dist);
       }
     //Apply speeds 
     vel_msg.linear.x = LINEAR_SPEED;
