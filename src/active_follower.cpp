@@ -26,7 +26,7 @@
 #define ERROR_MAX 10
 
 //Low Pass Filter
-#define FILTER_SIZE 5
+#define FILTER_SIZE 5 // keep it odd for median filter
 
 enum STATE { STRAIGHT, TURN_OPP_SIDE, FOLLOW }; //possible FSM states
 
@@ -208,7 +208,7 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
         ROS_INFO("STRAIGHT");
         vel_msg.linear.x = LINEAR_SPEED;
         vel_msg.angular.z = 0.0;
-        //vel_pub.publish(vel_msg);
+        vel_pub.publish(vel_msg);
       }
     break;
 
@@ -257,7 +257,7 @@ void ActiveFollower::UpdateFSM()  // HERE all the magic happens
 
 
       }
-      //vel_pub.publish(vel_msg);   //publish the message with new parameters
+      vel_pub.publish(vel_msg);   //publish the message with new parameters
     }
 
    break;
@@ -323,46 +323,49 @@ void ActiveFollower::PIDcontrol() {
     //Apply speeds 
     vel_msg.linear.x = LINEAR_SPEED;
     vel_msg.angular.z = theta;
-    //vel_pub.publish(vel_msg);
+    vel_pub.publish(vel_msg);
 }
 
 
 
-void ActiveFollower::DistanceFilter(){ // add low pass filter to remove unwanted zeros
-        // CENTER BUFFER
-        center_sensor_buffer.pop_back(); // Remove oldest value
-        center_sensor_buffer.insert(center_sensor_buffer.begin(), center_raw); // Add new reading
-
-        // LEFT BUFFER
-        left_sensor_buffer.pop_back(); // Remove oldest value
-        left_sensor_buffer.insert(left_sensor_buffer.begin(), left_raw); // Add new reading
-        
-        // RIGHT BUFFER
-        right_sensor_buffer.pop_back(); // Remove oldest value
-        right_sensor_buffer.insert(right_sensor_buffer.begin(), right_raw); // Add new reading
-
-
-        // Calculate averages and output CENTER
-        double sumCenter = 0.0;
-        for (int i = 0; i < center_sensor_buffer.size(); i++) {
-            sumCenter += center_sensor_buffer[i];
-        }
-        center_dist =  sumCenter / FILTER_SIZE;
-
-        // Calculate averages and output LEFT
-        double sumLeft = 0.0;
-        for (int i = 0; i < left_sensor_buffer.size(); i++) {
-            sumLeft += left_sensor_buffer[i];
-        }
-        left_dist =  sumLeft / FILTER_SIZE;
-
-        // Calculate averages and output Right
-        double sumRight = 0.0;
-        for (int i = 0; i < right_sensor_buffer.size(); i++) {
-            sumRight += right_sensor_buffer[i];
-        }
-        right_dist =  sumRight / FILTER_SIZE;
+void ActiveFollower::DistanceFilter(){ // median filter keeps the REAL reading that is median from last FILTER SIZE (5) values
+     // find median vector index
+    int medianIndex = FILTER_SIZE / 2; 
     
+    // CENTER BUFFER
+    center_sensor_buffer.pop_back(); // Remove oldest value
+    center_sensor_buffer.insert(center_sensor_buffer.begin(), center_raw); // Add new reading
+
+   std::vector<int> CenterTempBuffer = center_sensor_buffer; // Create a copy to preserve the original
+
+    // Sort the temp buffer
+    std::sort(CenterTempBuffer.begin(), CenterTempBuffer.end() );
+
+    // give that as output
+    center_dist = CenterTempBuffer[medianIndex];
 
 
+    // LEFT BUFFER
+    left_sensor_buffer.pop_back(); // Remove oldest value
+    left_sensor_buffer.insert(left_sensor_buffer.begin(), left_raw); // Add new reading
+
+    std::vector<int> LeftTempBuffer = left_sensor_buffer; // Create a copy to preserve the original
+
+   
+    std::sort(LeftTempBuffer.begin(), LeftTempBuffer.end() ); // Sort the buffer
+
+
+    
+    left_dist = LeftTempBuffer[medianIndex];// give that as output
+
+    
+    // RIGHT BUFFER
+    right_sensor_buffer.pop_back(); // Remove oldest value
+    right_sensor_buffer.insert(right_sensor_buffer.begin(), right_raw); // Add new reading
+
+    std::vector<int> RightTempBuffer = right_sensor_buffer; // Create a copy to preserve the original
+
+    std::sort(RightTempBuffer.begin(), RightTempBuffer.end() ); // Sort the buffer
+
+    right_dist = RightTempBuffer[medianIndex];// give that as output
 }
