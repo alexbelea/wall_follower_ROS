@@ -25,7 +25,8 @@
 #define ERROR_MAX 10
 
 // Low Pass Filter
-#define FILTER_SIZE 3 // keep it odd for median filter
+#define FILTER_SIZE 3       // keep it odd for median filter
+#define MAX_SENSORS_JUMP 20 // instead of filter - check distance jump
 
 enum STATE
 {
@@ -84,12 +85,12 @@ private:            // CLASS METHODS (FUNCTIONS) AND MEMBERS (VARIABLES)
   geometry_msgs::Twist vel_msg; // Twist message to publish
 
   bool center, left, right; // bools to keep track of wall detection
-
+  // PID controller vars
   double error,
       previous_error,
       derivative,
       integral,
-      old_left_dist, old_right_dist; // PID controller vars
+      old_left_dist, old_right_dist, old_center_dist;
 
   // Subscribers to sonars
   ros::Subscriber center_sonar_sub; // subscriber for central sonar  topic /arduino/sonar_2
@@ -135,6 +136,10 @@ ActiveFollower::ActiveFollower()
   left_raw = 0;
   right_raw = 0;
 
+  old_center_dist = 0;
+  old_left_dist = 0;
+  old_right_dist = 0;
+
   center = false;
   left = false;
   right = false;
@@ -162,9 +167,15 @@ ActiveFollower::ActiveFollower()
 // Callback function attached to CENTER sonar topic
 void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr &msg)
 {
-  center_raw = msg->data;
+  // record old dist values for PID control and
+  // to compare (avoid false zero reading)
+  old_left_dist = left_dist;
+  old_right_dist = right_dist;
+  old_center_dist = center_dist;
+  // center_raw = msg->data;
+  center_dist = msg->data;
   // call the functions doing the work here
-  DistanceFilter();
+  // DistanceFilter();
   WallDetect();
   UpdateFSM();
 }
@@ -172,13 +183,15 @@ void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr &msg)
 // Callback function attached to LEFT sonar topic
 void ActiveFollower::LeftSonarCallback(const std_msgs::Int16::ConstPtr &msg)
 {
-  left_raw = msg->data;
+  // left_raw = msg->data;
+  left_dist = msg->data;
 }
 
 // Callback function attached to RIGHT sonar topic
 void ActiveFollower::RightSonarCallback(const std_msgs::Int16::ConstPtr &msg)
 {
-  right_raw = msg->data;
+  // right_raw = msg->data;
+  right_dist = msg->data;
 }
 
 void ActiveFollower::UpdateFSM() // HERE all the magic happens
@@ -272,19 +285,22 @@ void ActiveFollower::UpdateFSM() // HERE all the magic happens
 void ActiveFollower::WallDetect()
 {
   // detect center wall
-  if ((center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED))
+  if (((center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED))) // check if new value between 1 and our detection distance and... don't care if jump to zero
+
     center = true;
   else
     center = false;
 
   // detect left wall
-  if ((left_dist > 0) && (left_dist <= OBJECT_DIST_DETECTED))
+  if (((left_dist > 0) && (left_dist <= OBJECT_DIST_DETECTED)) && // check if new value between 1 and our detection distance and...
+      !(left_dist < (old_left_dist - MAX_SENSORS_JUMP)))          // not less than allowed difference
     left = true;
   else
     left = false;
 
   // detect right wall
-  if ((right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED))
+  if (((right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED)) && // check if new value between 1 and our detection distance and...
+      !(right_dist < (old_right_dist - MAX_SENSORS_JUMP)))          // not less than allowed difference
     right = true;
   else
     right = false;
