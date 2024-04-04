@@ -239,7 +239,7 @@ void ActiveFollower::UpdateFSM() // HERE all the magic happens
     break;
 
   case TURN_OPP_SIDE:
-    if (!center && (left || right)) // SIDE detected, not CENTER - go to FOLLOW
+    if (!center && (left ^ right)) // one SIDE detected, not CENTER - go to FOLLOW
     {
       ROS_INFO("FOLLOW");
       fsm_state = FOLLOW;
@@ -343,8 +343,9 @@ void ActiveFollower::PIDcontrol()
 
   // Update previous
   // previous_error = error;
-  old_left_dist = left_dist;
-  old_right_dist = right_dist;
+  // old_left_dist = left_dist;
+  // old_right_dist = right_dist;
+  // this is now done in CentralSonarCallback
 
   // convert PID_output to angle theta to output
   theta = tan(PID_output / 2);
@@ -357,17 +358,23 @@ void ActiveFollower::PIDcontrol()
   {
     theta = -PI;
   }
+
+  // debug display text
   if (DEBUG)
   {
     ROS_INFO("~~~~~~~~~~PID loop~~~~~~~~~~");
     ROS_INFO("PID output: %.3f\nTheta: %.3f\nIntegral: %.3f\nDerivative: %.1f\nError: %.1f\nOld Left Dist: %.1f\nOld Right Dist: %.1f", PID_output, theta, integral, derivative, error, old_left_dist, old_right_dist);
   }
+
+  if (left)
+    theta = theta * -1; // invert angle for clockwise follow
   // Apply speeds
   vel_msg.linear.x = LINEAR_SPEED;
   vel_msg.angular.z = theta;
   vel_pub.publish(vel_msg);
 }
 
+// not used due to introducing lag.
 void ActiveFollower::DistanceFilter()
 { // median filter keeps the REAL reading that is median from last FILTER SIZE (5) values
   // find median vector index
