@@ -12,7 +12,7 @@
 // Add your own definitions here
 #define LINEAR_SPEED 0.3        // m/s
 #define ANGULAR_SPEED 0.5       // rad/s
-#define OBJECT_DIST_DETECTED 90 // cm
+#define OBJECT_DIST_DETECTED 50 // cm
 #define OBJECT_DIST_FOLLOW 40   // cm
 #define PI 3.1416
 #define MIN_ANGLE_DEG
@@ -60,7 +60,7 @@ private:            // CLASS METHODS (FUNCTIONS) AND MEMBERS (VARIABLES)
   void UpdateFSM(); // Function where FSM is updated
   void WallDetect();
   void PIDcontrol();
-  void DistanceFilter();
+ // void DistanceFilter();
 
   // node variables
   STATE fsm_state; // robot's FSM state
@@ -77,7 +77,7 @@ private:            // CLASS METHODS (FUNCTIONS) AND MEMBERS (VARIABLES)
   std::vector<int> center_sensor_buffer; // holds the values - increasing the buffer makes reactino slower!
   std::vector<int> left_sensor_buffer;
   std::vector<int> right_sensor_buffer;
-  int center_raw, left_raw, right_raw; // RAW unfiltered distances
+  //int center_raw, left_raw, right_raw; // RAW unfiltered distances
 
   // Any other variable you may need to do your task
   int center_dist, left_dist, right_dist; // variables holding distance values
@@ -132,9 +132,9 @@ ActiveFollower::ActiveFollower()
   left_dist = 0;
   right_dist = 0;
 
-  center_raw = 0;
-  left_raw = 0;
-  right_raw = 0;
+  // center_raw = 0;
+  // left_raw = 0;
+  // right_raw = 0;
 
   old_center_dist = 0;
   old_left_dist = 0;
@@ -266,7 +266,7 @@ void ActiveFollower::UpdateFSM() // HERE all the magic happens
 
         if (left_dist > right_dist)
         { // turned more to RIGHT, so keep turning RIGHT
-          vel_msg.angular.z = ANGULAR_SPEED / 2;
+          vel_msg.angular.z = -1*(ANGULAR_SPEED / 2);
         }
         else if (left_dist < right_dist)
         { // turned more to LEFT, so keep turning LEFT
@@ -374,8 +374,10 @@ void ActiveFollower::PIDcontrol()
   vel_pub.publish(vel_msg);
 }
 
+
+
 // not used due to introducing lag.
-void ActiveFollower::DistanceFilter()
+/*void ActiveFollower::DistanceFilter()
 { // median filter keeps the REAL reading that is median from last FILTER SIZE (5) values
   // find median vector index
   int medianIndex = FILTER_SIZE / 2;
@@ -411,4 +413,4 @@ void ActiveFollower::DistanceFilter()
   std::sort(RightTempBuffer.begin(), RightTempBuffer.end()); // Sort the buffer
 
   right_dist = RightTempBuffer[medianIndex]; // give median as output
-}
+}*/
