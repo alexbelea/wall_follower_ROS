@@ -175,7 +175,7 @@ void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr &msg)
   // center_raw = msg->data;
   center_dist = msg->data;
   // call the functions doing the work here
-  // DistanceFilter();
+  // DistanceFilter(); //not used due to LAG
   WallDetect();
   UpdateFSM();
 }
@@ -225,8 +225,8 @@ void ActiveFollower::UpdateFSM() // HERE all the magic happens
     break;
 
   case FOLLOW:
-    if (center && (left || right))
-    { // if CENTER and either left or right, go to turn opp side to turn corner
+    if (center && (left ^ right))
+    { // if CENTER and EITHER left or right (but not both), go to turn opp side to turn corner
       ROS_INFO("TURN_OPP_SIDE");
       fsm_state = TURN_OPP_SIDE;
     }
@@ -239,7 +239,7 @@ void ActiveFollower::UpdateFSM() // HERE all the magic happens
     break;
 
   case TURN_OPP_SIDE:
-    if (!center && (left ^ right)) // one SIDE detected, not CENTER - go to FOLLOW
+    if (!center && (left ^ right)) // ONE side detected, not CENTER - go to FOLLOW
     {
       ROS_INFO("FOLLOW");
       fsm_state = FOLLOW;
@@ -286,21 +286,18 @@ void ActiveFollower::WallDetect()
 {
   // detect center wall
   if (((center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED))) // check if new value between 1 and our detection distance and... don't care if jump to zero
-
     center = true;
   else
     center = false;
 
   // detect left wall
-  if (((left_dist > 0) && (left_dist <= OBJECT_DIST_DETECTED)) && // check if new value between 1 and our detection distance and...
-      !(left_dist < (old_left_dist - MAX_SENSORS_JUMP)))          // not less than allowed difference
+  if (((left_dist > 0) && (left_dist <= OBJECT_DIST_DETECTED)) ) // check if new value between 1 and our detection distance
     left = true;
   else
     left = false;
 
   // detect right wall
-  if (((right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED)) && // check if new value between 1 and our detection distance and...
-      !(right_dist < (old_right_dist - MAX_SENSORS_JUMP)))          // not less than allowed difference
+  if (((right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED)) ) // check if new value between 1 and our detection distance 
     right = true;
   else
     right = false;
@@ -368,6 +365,9 @@ void ActiveFollower::PIDcontrol()
 
   if (left)
     theta = theta * -1; // invert angle for clockwise follow
+
+
+
   // Apply speeds
   vel_msg.linear.x = LINEAR_SPEED;
   vel_msg.angular.z = theta;
