@@ -12,11 +12,10 @@
 // Add your own definitions here
 #define LINEAR_SPEED 0.3        // m/s
 #define ANGULAR_SPEED 0.5       // rad/s
-#define OBJECT_DIST_DETECTED 50 // cm
+#define OBJECT_DIST_DETECTED 70 // cm
 #define OBJECT_DIST_FOLLOW 40   // cm
 #define PI 3.1416
-#define MIN_ANGLE_DEG
-#define POLL_RATE 50.0
+#define POLL_RATE 10.0
 
 // PID control
 #define KP 0.1
@@ -115,7 +114,7 @@ ActiveFollower::ActiveFollower()
 {
   // 1) Attach subscription callbacks. Subscriber objects like my_sub1 are needed but not mentioned again
   // Update the TOPIC_NAME and change "std_msgs::Int64" to its corresponding message type
-  //                                               ("topic"           , Hz, address of callback function, pointer to the current object instance that the method belongs to )
+  //                                              ("topic"           , Hz       , address of callback function         , pointer to the current object instance that the method belongs to )
   center_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_2", POLL_RATE, &ActiveFollower::CentralSonarCallback, this);
   left_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_3", POLL_RATE, &ActiveFollower::LeftSonarCallback, this);
   right_sonar_sub = nh.subscribe<std_msgs::Int16>("/arduino/sonar_1", POLL_RATE, &ActiveFollower::RightSonarCallback, this);
@@ -321,7 +320,7 @@ void ActiveFollower::PIDcontrol()
   }
 
   // Update integral and avoid windup
-  if (abs(error) > ERROR_MAX)
+  //if (abs(error) > ERROR_MAX)
     integral += error * (1 / POLL_RATE); // only add error if below threshold
 
   // Calculate derivative
