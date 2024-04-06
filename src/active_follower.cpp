@@ -166,12 +166,10 @@ ActiveFollower::ActiveFollower()
 // Callback function attached to CENTER sonar topic
 void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr &msg)
 {
-  // record old dist values for PID control and
-  // to compare (avoid false zero reading)
-  old_left_dist = left_dist;
-  old_right_dist = right_dist;
+
+  // store old value before pulling new data
   old_center_dist = center_dist;
-  // center_raw = msg->data;
+  // pull new data
   center_dist = msg->data;
   // call the functions doing the work here
   // DistanceFilter(); //not used due to LAG
@@ -182,14 +180,18 @@ void ActiveFollower::CentralSonarCallback(const std_msgs::Int16::ConstPtr &msg)
 // Callback function attached to LEFT sonar topic
 void ActiveFollower::LeftSonarCallback(const std_msgs::Int16::ConstPtr &msg)
 {
-  // left_raw = msg->data;
+  // store old value before pulling new data
+  old_left_dist = left_dist;
+  // pull new data
   left_dist = msg->data;
 }
 
 // Callback function attached to RIGHT sonar topic
 void ActiveFollower::RightSonarCallback(const std_msgs::Int16::ConstPtr &msg)
 {
-  // right_raw = msg->data;
+  // store old value before pulling new data
+  old_right_dist = right_dist;
+  // pull new data
   right_dist = msg->data;
 }
 
@@ -229,10 +231,14 @@ void ActiveFollower::UpdateFSM() // HERE all the magic happens
       ROS_INFO("TURN_OPP_SIDE");
       fsm_state = TURN_OPP_SIDE;
     }
+    else if ( (!left && !right) && ( !old_left_dist && !old_right_dist) ) // only return to STRAIGHT FSM state if old values ARE ZERO
+    { // no walls detected, return to state 0
+      error = 0; // reset error value for future
+      fsm_state = STRAIGHT;
+      ROS_INFO("NO SIDE WALL DETECTED");
+    }
     else
     {               // do follow PID logic
-      integral = 0; // reset integral before calling PIDcontrol   to avoid PID going bananas
-      derivative = 0;
       PIDcontrol();
     }
     break;
@@ -263,13 +269,13 @@ void ActiveFollower::UpdateFSM() // HERE all the magic happens
       else if (right && left)
       { // detected both LEFT and RIGHT - turn based on comparing distance
 
-        if (left_dist > right_dist)
-        { // turned more to RIGHT, so keep turning RIGHT
-          vel_msg.angular.z = -1*(ANGULAR_SPEED / 2);
+        if ((left_dist > right_dist) && (right_dist != 0) )
+        { // right wall closer, so turn left
+          vel_msg.angular.z = (ANGULAR_SPEED / 2);
         }
-        else if (left_dist < right_dist)
-        { // turned more to LEFT, so keep turning LEFT
-          vel_msg.angular.z = ANGULAR_SPEED / 2;
+        else if (  (left_dist < right_dist) && (left_dist != 0)  )
+        { // left wall is closer, so turn right 
+          vel_msg.angular.z = -1* (ANGULAR_SPEED / 2);
         }
       }
       vel_pub.publish(vel_msg); // publish the message with new parameters
@@ -284,47 +290,42 @@ void ActiveFollower::UpdateFSM() // HERE all the magic happens
 void ActiveFollower::WallDetect()
 {
   // detect center wall
-  if (((center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED))) // check if new value between 1 and our detection distance and... don't care if jump to zero
+  if ( (center_dist > 0) && (center_dist <= OBJECT_DIST_DETECTED) ) // check if new value between 1 and our detection distance and... don't care if jump to zero
     center = true;
-  else
-    center = false;
+  else center = false;
 
   // detect left wall
   if (((left_dist > 0) && (left_dist <= OBJECT_DIST_DETECTED)) ) // check if new value between 1 and our detection distance
     left = true;
-  else
-    left = false;
+  else  left = false;
 
   // detect right wall
-  if (((right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED)) ) // check if new value between 1 and our detection distance 
+  if (  (right_dist > 0) && (right_dist <= OBJECT_DIST_DETECTED) )  // check if new value between 1 and our detection distance 
     right = true;
-  else
-    right = false;
+  else  right = false;
+
 }
 
+
+// PID DETECTION 
 void ActiveFollower::PIDcontrol()
 {
 
   double PID_output;
   double theta;
   // Calculate error for left or right, and only if distance not zero (wrong reading)
-  if (left && (left_dist != 0))
+  if (left && (left_dist != 0) )
     error = OBJECT_DIST_FOLLOW - left_dist;
   else if (right && (right_dist != 0))
     error = OBJECT_DIST_FOLLOW - right_dist;
-  else
-  { // no walls detected, return to state 0
-    error = 0;
-    fsm_state = STRAIGHT;
-    ROS_INFO("NO SIDE WALL DETECTED");
-  }
+
 
   // Update integral and avoid windup
-  //if (abs(error) > ERROR_MAX)
+  if (abs(error) > ERROR_MAX)
     integral += error * (1 / POLL_RATE); // only add error if below threshold
 
   // Calculate derivative
-  // derivative = error - previous_error;
+  //derivative = error - previous_error;
   if (left)
   {
     derivative = (left_dist - old_left_dist) / (1 / POLL_RATE);
@@ -332,7 +333,7 @@ void ActiveFollower::PIDcontrol()
   if (right)
   {
     derivative = (right_dist - old_right_dist) / (1 / POLL_RATE);
-  } // for right side
+  } // for right side 
 
   // Calculate PID_output <-- distance to OBJECT_DIST_DETECTED
   PID_output = KP * (error + KI * integral + KD * derivative);
