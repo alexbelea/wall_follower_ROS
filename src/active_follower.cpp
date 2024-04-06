@@ -12,7 +12,7 @@
 // Add your own definitions here
 #define LINEAR_SPEED 0.3        // m/s
 #define ANGULAR_SPEED 0.5       // rad/s
-#define OBJECT_DIST_DETECTED 70 // cm
+#define OBJECT_DIST_DETECTED 65 // cm
 #define OBJECT_DIST_FOLLOW 40   // cm
 #define PI 3.1416
 #define POLL_RATE 10.0
@@ -320,12 +320,11 @@ void ActiveFollower::PIDcontrol()
     error = OBJECT_DIST_FOLLOW - right_dist;
 
 
-  // Update integral and avoid windup
-  if (abs(error) > ERROR_MAX)
-    integral += error * (1 / POLL_RATE); // only add error if below threshold
+  // Update integral -- only add error if below threshold
+  //if (abs(error) > ERROR_MAX)
+    integral += error * (1 / POLL_RATE);
 
   // Calculate derivative
-  //derivative = error - previous_error;
   if (left)
   {
     derivative = (left_dist - old_left_dist) / (1 / POLL_RATE);
